@@ -55,11 +55,8 @@ provider "kubernetes" {
 
 # Configure Helm provider  
 provider "helm" {
-  kubernetes {
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
-  }
+  # Use environment variables or kubeconfig for authentication
+  # The kubernetes and kubectl providers above handle the EKS connection
 }
 
 # Configure kubectl provider
