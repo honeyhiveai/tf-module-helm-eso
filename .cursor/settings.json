@@ -1,0 +1,31 @@
+{
+  // Cursor-specific settings for tf-module-aws-vpc
+
+  // AI and Code Generation
+  "cursor.chat.alwaysSearchWeb": false,
+  "cursor.general.enableTelemetry": false,
+
+  // Terraform-specific AI behavior
+  "cursor.cpp.disabledLanguages": [],
+  "cursor.general.enableAICodeActions": true,
+
+  // Workspace-specific rules enforcement
+  "cursor.general.enableRulesForAI": true,
+
+  // File handling
+  "cursor.general.gitignoreGlobs": [
+    "**/.terraform/**",
+    "**/terraform.tfstate*",
+    "**/*.tfvars",
+    "**/crash.log*",
+    "**/.cache/**"
+  ],
+
+  // Code completion and suggestions
+  "cursor.general.enableCodeLens": true,
+  "cursor.general.enableInlineCompletion": true,
+
+  // Privacy and security
+  "cursor.privacy.anonymizedTelemetry": false,
+  "cursor.privacy.enableTelemetry": false
+}

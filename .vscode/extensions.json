@@ -1,0 +1,36 @@
+{
+  "recommendations": [
+    // Core Terraform development
+    "hashicorp.terraform",
+
+    // Language support
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+    "golang.go",
+
+    // Documentation and formatting
+    "davidanson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+
+    // Build tools
+    "ms-vscode.makefile-tools",
+
+    // Git and collaboration
+    "eamodio.gitlens",
+    "github.vscode-pull-request-github",
+
+    // Code quality and security
+    "ms-vscode.vscode-eslint",
+    "ms-python.python",
+
+    // Productivity
+    "ms-vscode.vscode-todo-highlight",
+    "gruntfuggly.todo-tree",
+    "streetsidesoftware.code-spell-checker"
+  ],
+  "unwantedRecommendations": [
+    // Avoid conflicting Terraform extensions
+    "mauve.terraform",
+    "4ops.terraform"
+  ]
+}

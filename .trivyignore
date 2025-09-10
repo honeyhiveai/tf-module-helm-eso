@@ -1,0 +1,14 @@
+# .trivyignore
+# Security exceptions for Terraform module template
+# Syntax: <RULE-ID> [# justification]
+# Find rule IDs in Trivy output (e.g., "AVD-AWS-0017")
+
+# Common AWS exceptions that may be acceptable for modules:
+# AVD-AWS-0017   # S3 bucket allows public read; acceptable for public content buckets
+# AVD-AWS-0132   # Uses AWS managed keys instead of customer managed keys
+
+# Add specific exceptions for your module here with clear justifications
+# Example:
+# AVD-AWS-0089   # ECS task definition allows privilege escalation; required for specific use case
+
+# Template Note: Remove this comment block and add actual exceptions as needed

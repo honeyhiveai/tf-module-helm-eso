@@ -1,0 +1,283 @@
+# tf-module-aws-vpc Cursor Rules
+
+## Project Overview
+This repository contains a production-ready Terraform module for creating AWS VPC infrastructure with comprehensive features including subnets, NAT gateways, VPC endpoints, and flow logs. It follows module composition patterns with submodules for different functional areas (subnets, endpoints, flow_logs) and emphasizes flexibility, validation, and best practices.
+
+## Core Technologies & Standards
+- **Terraform**: >=1.8.0 with AWS Provider ~>6.0
+- **Module Architecture**: Hierarchical with functional submodules
+- **Documentation**: terraform-docs with auto-generation
+- **Testing**: Multiple example configurations with validation
+- **Security**: Trivy scanning with configurable ignore rules
+- **Versioning**: Semantic versioning with GitHub Actions automation
+
+## TERRAFORM MODULE DEVELOPMENT GUIDELINES
+
+### Module Structure & Organization
+```
+/                      # Root module (VPC core)
+├── main.tf           # Primary resources & module calls
+├── variables.tf      # Input variables with validation
+├── outputs.tf        # Module outputs
+├── subnets/          # Subnet & NAT submodule
+├── endpoints/        # VPC endpoints submodule  
+├── flow_logs/        # Flow logs submodule
+└── examples/         # Usage examples & tests
+```
+
+### Variable Standards
+- **Naming**: Use descriptive names with consistent prefixes (e.g., `subnet_`, `flow_logs_`, `endpoint_`)
+- **Required Variables**: Always include `description`, `type`, and validation where applicable
+- **Optional Variables**: Provide sensible defaults and clear documentation
+- **Validation**: Use `validation` blocks for constrained values, CIDR validation, and business logic
+- **Complex Types**: Use `object()` types with `optional()` for flexible configuration
+
+#### Variable Validation Patterns
+```hcl
+variable "nat_strategy" {
+  description = "Strategy for NAT gateways: 'none', 'single', or 'per_az'."
+  type        = string
+  default     = "single"
+  
+  validation {
+    condition     = contains(["none", "single", "per_az"], var.nat_strategy)
+    error_message = "nat_strategy must be one of: none, single, per_az."
+  }
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC."
+  type        = string
+  
+  validation {
+    condition     = can(cidrnetmask(var.vpc_cidr))
+    error_message = "vpc_cidr must be a valid CIDR."
+  }
+}
+```
+
+### Resource & Data Source Patterns
+- **Required Providers**: Always specify exact version constraints in submodules
+- **Data Sources**: Use for dynamic discovery (AZs, regions) with sensible fallbacks
+- **Resource Naming**: Use consistent patterns: `${var.name}-${purpose}` 
+- **Tagging**: Merge default tags with user-provided tags using `merge()`
+- **Conditional Resources**: Use `count` with boolean variables for optional features
+
+### Lifecycle Management & Preconditions
+- **Preconditions**: Validate complex interdependencies between variables
+- **Error Messages**: Provide clear, actionable error messages with context
+- **Null Resources**: Use for module-level validations and guards
+- **Optional Debugging**: Include `skip_preconditions` variables for development
+
+#### Precondition Patterns
+```hcl
+lifecycle {
+  precondition {
+    condition     = (var.nat_strategy == "none") || var.create_igw
+    error_message = "create_igw must be true when nat_strategy is 'single' or 'per_az' (NAT requires an Internet Gateway)."
+  }
+  
+  precondition {
+    condition     = length(local.public_cidrs) == local.az_count
+    error_message = "public_subnet_cidrs must resolve to exactly one CIDR per AZ."
+  }
+}
+```
+
+### Module Composition
+- **Submodules**: Organize by functional area (subnets, endpoints, flow_logs)
+- **Data Flow**: Pass computed values between submodules via outputs/inputs
+- **Dependencies**: Use implicit dependencies through resource references
+- **Source Paths**: Use relative paths (`./submodules`) for internal modules
+
+### Local Values & Computation
+- **CIDR Calculation**: Use `cidrsubnet()` for automatic subnet allocation
+- **Data Transformation**: Process user inputs into normalized formats
+- **Conditional Logic**: Prefer `coalesce()` and `try()` for nullable values
+- **Complex Objects**: Build intermediate objects in locals for clarity
+
+### Output Standards
+- **Completeness**: Export all resource IDs, ARNs, and computed values users might need
+- **Naming**: Use descriptive names that indicate the resource type and purpose
+- **Documentation**: Always include `description` for every output
+- **Null Handling**: Use `try()` for conditional resources to avoid errors
+
+## EXAMPLES & TESTING PATTERNS
+
+### Example Organization
+- **Numbered Prefixes**: Use 2-digit prefixes to indicate complexity/features
+  - `00-*`: Minimal/basic examples
+  - `10-1X`: Core subnet/NAT variations  
+  - `20-2X`: Endpoint configurations
+  - `30-3X`: Flow logs variations
+  - `50-5X`: Submodule usage examples
+
+### Example Structure
+```hcl
+# examples/XX-descriptive-name/main.tf
+module "vpc" {
+  source   = "../.."
+  name     = "ex-descriptive-name"
+  vpc_cidr = "10.XX.0.0/16"  # Use unique CIDRs per example
+  
+  # Feature-specific configuration
+}
+
+output "vpc_id" { value = module.vpc.vpc_id }
+```
+
+### Provider Configuration
+- **Consistent Versions**: Use same version constraints as root module
+- **Region Flexibility**: Allow examples to work in any region where possible
+- **Minimal Config**: Include only necessary provider configuration
+
+## DOCUMENTATION STANDARDS
+
+### terraform-docs Integration
+- **Configuration**: Use `.terraform-docs.yml` for consistent formatting
+- **Auto-Generation**: Include terraform-docs in CI/CD pipeline
+- **Template**: Use `README.header.md` for custom content, let terraform-docs handle the rest
+- **Scope**: Document root module and all submodules
+
+### README Structure
+```markdown
+# Module Name
+Brief description and key features
+
+## Requirements
+[terraform-docs generated]
+
+## Usage
+Basic usage example
+
+## Examples
+Links to example configurations
+
+## Advanced Usage
+Complex scenarios and patterns
+```
+
+### Code Comments
+- **Resource Blocks**: Comment purpose and any non-obvious configuration
+- **Complex Logic**: Explain CIDR calculations, conditionals, and transformations
+- **Business Rules**: Document why certain validations or constraints exist
+- **TODOs**: Mark temporary solutions and future improvements
+
+## GITHUB ACTIONS & CI/CD
+
+### Workflow Standards
+- **Descriptive Job Names**: Use clear, self-documenting job names
+  - `terraform-quality-checks` (not just "lint")
+  - `terraform-plan-examples` (not just "plan") 
+  - `auto-format-and-docs` (not just "fmt")
+
+### Summary Output Requirements
+- **TFLint**: Output results to `$GITHUB_STEP_SUMMARY` with status indicators
+- **Trivy Security**: Display findings in formatted summary, fail on HIGH/CRITICAL
+- **No Artifacts**: Avoid downloadable zip files, use summary for immediate visibility
+- **Professional Formatting**: Use emojis, headers, and code blocks for readability
+
+### Validation Pipeline
+1. **Format & Documentation**: Auto-apply `terraform fmt` and update docs
+2. **Quality Checks**: TFLint, terraform validate, security scanning
+3. **Example Testing**: Validate all example configurations with `terraform plan`
+4. **Version Enforcement**: Require semantic version tags in PR titles
+
+### Security & Compliance
+- **Trivy Configuration**: Use `.trivy.yaml` for consistent security scanning
+- **Ignore Rules**: Document security exceptions in `.trivyignore` with justifications
+- **Sensitive Data**: Never commit `.tfvars`, credentials, or state files
+- **Branch Protection**: Require PR approval and passing checks before merge
+
+## VERSIONING & RELEASE MANAGEMENT
+
+### Semantic Versioning
+- **PR Titles**: Must include `#major`, `#minor`, `#patch`, or `#none`
+- **Breaking Changes**: Major version for incompatible API changes
+- **New Features**: Minor version for backward-compatible functionality
+- **Bug Fixes**: Patch version for backward-compatible fixes
+- **Documentation**: `#none` for docs-only changes
+
+### Release Process
+- **Automation**: GitHub Actions handles tagging and release creation
+- **Changelog**: Generated from commit history and PR titles
+- **Artifacts**: No build artifacts needed for Terraform modules
+- **Notifications**: Releases trigger downstream dependency updates
+
+## CODE PATTERNS & BEST PRACTICES
+
+### Error Handling
+- **Graceful Defaults**: Provide reasonable defaults for optional configurations
+- **Clear Validation**: Use descriptive error messages with context
+- **Fail Fast**: Validate inputs early with preconditions
+- **Debug Support**: Include optional debugging capabilities
+
+### Performance & Scalability
+- **Resource Limits**: Consider AWS service limits in designs
+- **AZ Distribution**: Support flexible AZ selection and count
+- **CIDR Efficiency**: Optimize subnet allocation for growth
+- **Conditional Resources**: Minimize unused resources through conditionals
+
+### Security Considerations
+- **Least Privilege**: Default to secure configurations
+- **Network Isolation**: Properly configure security groups and NACLs
+- **Encryption**: Enable encryption where possible (flow logs, etc.)
+- **Access Control**: Support fine-grained permissions and policies
+
+## MAINTENANCE & OPERATIONS
+
+### Dependency Management
+- **Provider Versions**: Use `~>` for compatible updates within major versions
+- **Terraform Versions**: Specify minimum required version
+- **Regular Updates**: Keep dependencies current with security patches
+- **Testing**: Validate updates against example configurations
+
+### Monitoring & Observability
+- **Flow Logs**: Enable by default with configurable destinations
+- **Tagging**: Consistent tagging strategy for cost allocation and management
+- **Resource Naming**: Predictable naming for operational visibility
+- **Output Completeness**: Export all operationally relevant resource attributes
+
+## COLLABORATION GUIDELINES
+
+### Pull Request Standards
+- **Small Focused Changes**: One feature or fix per PR
+- **Clear Descriptions**: Explain what, why, and how
+- **Example Updates**: Update relevant examples when changing APIs
+- **Documentation**: Update docs for any user-facing changes
+- **Testing**: Ensure all examples continue to work
+
+### Code Review Checklist
+- [ ] Variable validation appropriate and comprehensive
+- [ ] Error messages clear and actionable
+- [ ] Examples demonstrate new functionality
+- [ ] Documentation updated and accurate
+- [ ] Security implications considered
+- [ ] Backward compatibility maintained (or major version bump)
+
+### Issue Management
+- **Bug Reports**: Include terraform version, example code, and error output
+- **Feature Requests**: Describe use case and proposed API
+- **Security Issues**: Follow responsible disclosure process
+- **Documentation Issues**: Provide specific improvement suggestions
+
+## PROHIBITED PRACTICES
+
+### NEVER DO
+- Hardcode region-specific values (use data sources)
+- Include sensitive data in examples or documentation
+- Break backward compatibility without major version bump
+- Skip validation on user inputs
+- Use deprecated resource types or arguments
+- Commit `.terraform.lock.hcl` for modules (only for applications)
+- Create examples that require manual setup without documentation
+
+### AVOID
+- Complex nested conditionals (prefer locals for clarity)
+- Hardcoded resource limits (make configurable where reasonable)
+- Provider configurations in modules (pass through variables)
+- Overly permissive security group rules
+- Single points of failure in highly available designs
+- Inconsistent naming patterns across resources
+
+This rules file ensures the tf-module-aws-vpc repository maintains high standards for enterprise-grade Terraform module development while providing clear guidance for contributors and maintainers.

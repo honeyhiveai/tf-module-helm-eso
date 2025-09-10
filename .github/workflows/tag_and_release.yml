@@ -1,0 +1,70 @@
+# After merging to main, we derive the next version 
+# based on those tags in commit history, then cut 
+# a Release. You can drop in your existing snippets here.
+
+name: Version Tag and Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [ main ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  determine-version:
+    name: Determine Next Semantic Version
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.new_tag }}
+
+    steps:
+      - name: Checkout merge commit (from squash merge)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        id: bump
+        uses: anothrNick/github-tag-action@1.71.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: none         # require a hashtag; otherwise no bump
+          RELEASE_BRANCHES: main     # only tag on main
+
+      - name: Sanity check for hashtag presence
+        run: |
+          if [ -z "${{ steps.bump.outputs.new_tag }}" ]; then
+            echo "::error::No version hashtag found in the merge commit message. Add one of #major #minor #patch #none to the PR title (used as merge message)."
+            exit 1
+          fi
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: [determine-version]
+    if: needs.determine-version.outputs.tag != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      # this checkout is not a requirement for the release, but
+      # it is a requirement if we want to attach artifacts to 
+      # releases in the future. And it is good practice to start
+      # GHA jobs in an explicitly known state
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token:      ${{ secrets.GITHUB_TOKEN }}
+          tag_name:   ${{ needs.determine-version.outputs.tag }}
+          name:       Release ${{ needs.determine-version.outputs.tag }}
+          draft:      false
+          prerelease: false

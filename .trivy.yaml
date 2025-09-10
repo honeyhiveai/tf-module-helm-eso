@@ -1,0 +1,13 @@
+# .trivy.yaml
+# Trivy Security Scanner Configuration for tf-module-aws-vpc
+
+# Basic settings that work reliably
+timeout: 10m0s
+cache-dir: .cache/trivy
+
+# Skip directories that don't need scanning
+skip-dirs:
+  - .terraform
+  - .git
+  - node_modules
+  - .trivy

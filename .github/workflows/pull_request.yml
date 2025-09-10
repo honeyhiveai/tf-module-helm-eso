@@ -1,0 +1,218 @@
+# This auto‑formats TF files and pushes the fix to the PR branch. 
+# It also blocks merges unless the PR title or latest commit 
+# message contains #major, #minor, #patch, or #none. Make the policy
+# job a required check in branch protection.
+# Make PR (fmt + policy) / require #major/#minor/#patch/#none a 
+# required status check in branch protection for main.
+
+name: Pull Request Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - '**/*.tf'
+      - '.tflint.hcl'
+      - '.terraform.lock.hcl'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-format-and-docs:
+    name: Auto-format Terraform + Update Docs
+    runs-on: ubuntu-latest
+    # allow only same-repo PRs to push, GHA doesn't have access to forks
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Run terraform fmt
+        run: terraform fmt -recursive
+
+      - name: Render terraform-docs
+        uses: terraform-docs/gh-actions@v1.4.1
+        with:
+          # Your config controls formatter/sections/output/inject/template
+          config-file: .terraform-docs.yml
+          # Comma-separated list of module dirs to render
+          working-dir: .,subnets,endpoints,flow_logs
+          # Let config decide output-method/file; pass empty to defer to config
+          output-method: ""
+          output-file: ""
+          git-push: "false"
+
+      - name: Commit changes (fmt + docs) if any
+        run: |
+          set -e
+          if ! git diff --quiet; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(fmt,docs): apply terraform fmt and refresh terraform-docs"
+            git push
+            echo "::notice::Pushed fmt + docs updates to ${GITHUB_HEAD_REF:-${{ github.head_ref }}}"
+          else
+            echo "No fmt/docs changes."
+          fi
+
+  compliance-dashboard:
+    name: Policy Compliance and Dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Checkov Terraform Security Analysis
+      - name: Setup Python for Checkov
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Checkov
+        run: |
+          pip install checkov
+          checkov --version
+      
+      - name: Run Checkov Security Analysis
+        run: |
+          set +e  # Allow checkov to fail so we can capture output
+          checkov --framework terraform --directory . --output json --output-file-path checkov-results.json
+          CHECKOV_EXIT_CODE=$?
+          set -e
+          
+          echo "## 🛡️ Checkov Security Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f checkov-results.json ]; then
+            # Parse Checkov results
+            PASSED=$(jq '.summary.passed // 0' checkov-results.json)
+            FAILED=$(jq '.summary.failed // 0' checkov-results.json)
+            SKIPPED=$(jq '.summary.skipped // 0' checkov-results.json)
+            
+            echo "### 📋 Checkov Results Summary" >> $GITHUB_STEP_SUMMARY
+            echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ⏭️ Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$FAILED" -gt 0 ]; then
+              echo "⚠️ **Checkov found security policy violations**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ **All security policies passed**" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ Checkov analysis failed" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      # Generate Policy Compliance Summary (Checkov-focused for PRs)
+      - name: Generate Policy Compliance Summary
+        if: always()
+        run: |
+          echo "## 📊 Policy Compliance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*This PR focuses on Terraform policy compliance. Complete security scanning (Trivy) runs in branch validation.*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f checkov-results.json ]; then
+            PASSED=$(jq '.summary.passed // 0' checkov-results.json)
+            FAILED=$(jq '.summary.failed // 0' checkov-results.json)
+            TOTAL=$(($PASSED + $FAILED))
+            
+            if [ "$TOTAL" -gt 0 ]; then
+              COMPLIANCE_PCT=$(python3 -c "print(round($PASSED * 100 / $TOTAL, 1))")
+              echo "### 🎯 Policy Compliance Score: ${COMPLIANCE_PCT}%" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              if (( $(python3 -c "print(1 if $COMPLIANCE_PCT >= 80 else 0)") )); then
+                echo "✅ **Excellent compliance score - Ready for merge**" >> $GITHUB_STEP_SUMMARY
+              elif (( $(python3 -c "print(1 if $COMPLIANCE_PCT >= 60 else 0)") )); then
+                echo "⚠️ **Good compliance score - Consider addressing failures**" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ **Low compliance score - Please address policy violations**" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📋 Quick Summary" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Passed**: $PASSED policies" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **Failed**: $FAILED policies" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "💡 **Tip**: Run \`checkov --framework terraform --directory .\` locally for detailed results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📎 **[View Detailed Compliance Report](../../actions/runs/${{ github.run_id }})**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Policy compliance check failed" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      # Generate comprehensive compliance report with all scan data
+      - name: Generate Comprehensive Compliance Report
+        if: always()
+        run: |
+          # Create empty trivy results if not available (since Trivy runs in branch validation)
+          if [ ! -f trivy-results.json ]; then
+            echo '{"Results":[]}' > trivy-results.json
+          fi
+          
+          # Create empty OPA results
+          echo '[]' > opa-results.json
+          
+          # Generate both markdown and JSON reports
+          python3 scripts/compliance-report.py --results-dir . --format markdown --output compliance-report.md
+          python3 scripts/compliance-report.py --results-dir . --format json --output compliance-report.json
+      
+      # Upload detailed compliance reports
+      - name: Upload Compliance Analysis Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-reports-${{ github.run_id }}
+          path: |
+            compliance-report.json
+            compliance-report.md
+            checkov-results.json
+          retention-days: 30
+      
+      - name: Add Detailed Compliance Links to Summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Comprehensive Analysis Available" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 **[Compliance Reports Artifacts](../../actions/runs/${{ github.run_id }})** - Download detailed analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- 🛡️ **Raw Checkov Results**: \`checkov-results.json\` (detailed policy findings)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Compliance Dashboard**: \`compliance-report.md\` (executive summary)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📈 **Compliance Data**: \`compliance-report.json\` (machine-readable metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Artifacts include enterprise compliance framework scoring (CIS, NIST, SOC2, PCI-DSS)*" >> $GITHUB_STEP_SUMMARY
+
+  require-version-tag:
+    name: Require Version Tag (#major/#minor/#patch/#none)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title for versioning hashtag
+        run: |
+          set -euo pipefail
+          TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $TITLE"
+          if echo "$TITLE" | grep -Eiq '#(major|minor|patch|none)\b'; then
+            echo "OK: hashtag present in PR title."
+          else
+            echo "::error::Missing hashtag. Add one of: #major, #minor, #patch, or #none to the PR title."
+            exit 1
+          fi
+
+

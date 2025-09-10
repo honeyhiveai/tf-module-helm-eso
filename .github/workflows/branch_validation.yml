@@ -1,0 +1,356 @@
+# Branch Validation Workflow for AWS Terraform Module
+# Runs on all branches except main to validate code quality and functionality
+
+name: Terraform Module Validation
+
+on:
+  push:
+    branches-ignore: [ main ]
+    paths:
+      - '**/*.tf'
+      - '.tflint.hcl'
+      - '.terraform.lock.hcl'
+      - 'examples/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+jobs:
+  trivy-security-scan:
+    name: Security Analysis (Informational)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # For SARIF upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better secret scanning
+
+      # Enhanced Trivy Security Scan
+      - name: Enhanced Trivy Security Scan
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'misconfig,secret,license'
+          format: 'json'
+          output: 'trivy-results.json'
+          trivy-config: '.trivy.yaml'
+
+      - name: Display Trivy Security Results
+        if: always()
+        run: |
+          echo "## 🔒 Trivy Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f trivy-results.json ]; then
+            # Parse JSON results and create summary
+            CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="CRITICAL")] | length' trivy-results.json 2>/dev/null || echo "0")
+            HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="HIGH")] | length' trivy-results.json 2>/dev/null || echo "0")
+            MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="MEDIUM")] | length' trivy-results.json 2>/dev/null || echo "0")
+            SECRETS=$(jq '[.Results[]?.Secrets[]?] | length' trivy-results.json 2>/dev/null || echo "0")
+
+            echo "### 📊 Security Issues Summary" >> $GITHUB_STEP_SUMMARY
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔑 Secrets | $SECRETS |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$SECRETS" -gt 0 ]; then
+              echo "⚠️ **Security issues found - Review recommended**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              if [ "$CRITICAL" -gt 0 ]; then
+                echo "🔴 **$CRITICAL Critical issues** - High priority review needed" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ "$HIGH" -gt 0 ]; then
+                echo "🟠 **$HIGH High severity issues** - Consider addressing" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ "$SECRETS" -gt 0 ]; then
+                echo "🔑 **$SECRETS Secrets detected** - Immediate attention required" >> $GITHUB_STEP_SUMMARY
+              fi
+
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "<details><summary>🔍 View Detailed Results</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              head -100 trivy-results.json >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "💡 **Note**: This is informational analysis for Terraform module examples. Production configurations should address these issues." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ **No high-priority security issues found**" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📎 **[View Detailed Security Report](../../actions/runs/${{ github.run_id }})**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Trivy scan failed - no results file generated" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Warning**: Security analysis could not complete" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Generate Security Compliance Report
+        if: always()
+        run: |
+          # Create minimal files for other scanners to generate security-focused report
+          echo '{"summary":{"passed":0,"failed":0,"skipped":0},"results":{"failed_checks":[]}}' > checkov-results.json
+          echo '[]' > opa-results.json
+
+          # Generate security-focused compliance report (if script exists)
+          if [ -f scripts/compliance-report.py ]; then
+            python3 scripts/compliance-report.py --results-dir . --format markdown --output security-compliance-report.md
+            python3 scripts/compliance-report.py --results-dir . --format json --output security-compliance-report.json
+          fi
+
+      - name: Upload Security Analysis Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-analysis-${{ github.run_id }}
+          path: |
+            trivy-results.json
+            trivy-security-report.txt
+            security-compliance-report.json
+            security-compliance-report.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Add Artifact Links to Summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Detailed Reports Available" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 **[Security Analysis Artifacts](../../actions/runs/${{ github.run_id }})** - Download detailed JSON/Markdown reports" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 **Raw Trivy Results**: \`trivy-results.json\` (machine-readable)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Security Report**: \`security-compliance-report.md\` (human-readable)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Artifacts are retained for 30 days and include complete scan details.*" >> $GITHUB_STEP_SUMMARY
+
+  terraform-quality-checks:
+    name: Terraform Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Terraform Plugin Directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Ensure TF plugin cache dir exists
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint plugins
+        run: tflint --init
+
+      - name: TFLint
+        run: |
+          # Capture output and write to GitHub Actions summary
+          set +e  # Allow tflint to fail so we can capture output
+          tflint -f compact > tflint-output.txt 2>&1
+          TFLINT_EXIT_CODE=$?
+          set -e
+
+          # Write results to GitHub Actions summary
+          echo "## 🔍 TFLint Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $TFLINT_EXIT_CODE -eq 0 ] && [ ! -s tflint-output.txt ]; then
+            echo "✅ **No linting issues found** - All Terraform code is clean!" >> $GITHUB_STEP_SUMMARY
+          else
+            if [ $TFLINT_EXIT_CODE -eq 0 ]; then
+              echo "✅ **Status:** PASS" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **Status:** FAIL" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Issues found:**" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat tflint-output.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Lint scan completed at $(date)_" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Exit with tflint's exit code
+          exit $TFLINT_EXIT_CODE
+
+      - name: Terraform validate (root)
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Trivy Security Scan
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          output: 'trivy-security-report.txt'
+          trivy-config: '.trivy.yaml'
+
+      - name: Display Trivy security scan results
+        if: always()
+        run: |
+          echo "## 🔒 Trivy Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f trivy-security-report.txt ] && [ -s trivy-security-report.txt ]; then
+            echo "**Scanned target:** \`.\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Security Findings:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat trivy-security-report.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+            # Check if there are any HIGH or CRITICAL findings
+            if grep -E "(HIGH|CRITICAL)" trivy-security-report.txt > /dev/null; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "⚠️ **HIGH or CRITICAL security issues found!**" >> $GITHUB_STEP_SUMMARY
+              echo "💡 **Note**: This is informational for Terraform module examples. Review for production use." >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "✅ **No security issues found** - All scanned files are clean!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  discover-example-directories:
+    name: Discover Example Directories
+    runs-on: ubuntu-latest
+    outputs:
+      example-directories: ${{ steps.set-matrix.outputs.example-directories }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find example directories
+        id: set-matrix
+        run: |
+          shopt -s nullglob
+          EXAMPLES=(examples/*/)
+
+          if [ ${#EXAMPLES[@]} -eq 0 ]; then
+            echo "No example directories found"
+            echo "example-directories=[]" >> $GITHUB_OUTPUT
+          else
+            # Convert to JSON array, removing trailing slashes
+            EXAMPLES_JSON=$(printf '%s\n' "${EXAMPLES[@]%/}" | jq -R . | jq -s .)
+            echo "Found examples: $EXAMPLES_JSON"
+            echo "example-directories=$EXAMPLES_JSON" >> $GITHUB_OUTPUT
+          fi
+
+  skip-examples-validation:
+    name: Skip Examples Validation
+    runs-on: ubuntu-latest
+    needs: discover-example-directories
+    if: needs.discover-example-directories.outputs.example-directories == '[]'
+    steps:
+      - name: No Examples Found
+        run: |
+          echo "## 📋 Example Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ **No example directories found** - Skipping example validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To add examples:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Create directories under \`examples/\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Add Terraform configurations demonstrating module usage" >> $GITHUB_STEP_SUMMARY
+          echo "3. Include \`provider.tf\` with appropriate AWS provider configuration" >> $GITHUB_STEP_SUMMARY
+
+  terraform-plan-examples:
+    name: Terraform Plan Examples
+    runs-on: ubuntu-latest
+    needs: discover-example-directories
+    if: needs.discover-example-directories.outputs.example-directories != '[]'
+    strategy:
+      matrix:
+        example-directory: ${{ fromJson(needs.discover-example-directories.outputs.example-directories) }}
+      fail-fast: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Terraform Plugin Directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Ensure TF plugin cache dir exists
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Set short dir name
+        id: short-name
+        run: echo "short=$(basename '${{ matrix.example-directory }}')" >> $GITHUB_OUTPUT
+
+      # Configure AWS credentials using OIDC (requires repository setup)
+      # Remove or modify this step if not using AWS OIDC authentication
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_OIDC_ROLE_NAME }}
+          aws-region: ${{ vars.AWS_REGION }}
+        # Skip this step if AWS variables are not configured
+        continue-on-error: true
+
+      - name: Terraform plan (${{ matrix.example-directory }})
+        run: |
+          cd ${{ matrix.example-directory }}
+          terraform init -backend=false
+          terraform plan -no-color -detailed-exitcode
+        # Continue on error to allow other examples to run
+        continue-on-error: true
+
+# Template Notes:
+#
+# Required Repository Variables (configure in GitHub repository settings):
+# - AWS_ACCOUNT_ID: Your AWS account ID for OIDC authentication
+# - AWS_REGION: Default AWS region for examples (e.g., us-east-1)
+# - AWS_OIDC_ROLE_NAME: Name of the GitHub Actions OIDC role
+#
+# Optional: Remove AWS OIDC authentication if not needed
+# - Comment out or remove the "Configure AWS credentials" step
+# - Examples will still validate syntax but won't run terraform plan
+#
+# This workflow will:
+# 1. Run security scanning with Trivy
+# 2. Validate Terraform code with TFLint and terraform validate
+# 3. Discover and validate all example configurations
+# 4. Generate comprehensive summaries in GitHub Actions
+#
+# Remove this comment block in your actual module.

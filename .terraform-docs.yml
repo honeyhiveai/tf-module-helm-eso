@@ -1,0 +1,36 @@
+version: "0.20"
+formatter: markdown table
+
+recursive:
+  enabled: false
+  path: .
+  include-main: true
+  exclude-dirs:
+    - .git
+    - .github
+    - .gitignore
+    - .terraform
+    - examples/
+    - submodules/
+
+output:
+  file: README.md
+  mode: inject
+
+sections:
+  show:
+    - header
+    - requirements
+    - providers
+    - resources
+    - inputs
+    - outputs
+
+content: |-
+  {{ include "README.header.md" }}
+
+  {{ .Requirements }}
+  {{ .Providers }}
+  {{ .Resources }}
+  {{ .Inputs }}
+  {{ .Outputs }}
