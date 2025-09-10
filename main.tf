@@ -1,5 +1,5 @@
-# Main Terraform Configuration for AWS Module Template
-# Replace this example with your actual AWS resources
+# External Secrets Operator Terraform Module - Main Configuration
+# Deploys ESO on EKS with comprehensive AWS Secrets Manager integration
 
 # ================================
 # LOCAL VALUES
@@ -15,13 +15,17 @@ locals {
       Name        = var.name
       Environment = var.environment
       ManagedBy   = "terraform"
-      Module      = "aws-template" # Replace with your module name
+      Module      = "external-secrets-operator"
+      Component   = "secrets-management"
     },
     var.tags
   )
 
-  # Note: example_computed removed as it was unused
-  # Add your computed values here as needed
+  # Service account name for IRSA
+  service_account_name = "external-secrets"
+
+  # OIDC issuer URL from EKS cluster
+  oidc_issuer_url = replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")
 }
 
 # ================================
@@ -34,51 +38,69 @@ data "aws_region" "current" {}
 # Get current AWS account ID
 data "aws_caller_identity" "current" {}
 
-# Note: Add additional data sources here as needed for your module
-
-# ================================
-# EXAMPLE AWS RESOURCES
-# ================================
-# Replace this section with your actual AWS resources
-
-# Example S3 bucket (replace with your resources)
-resource "aws_s3_bucket" "example" {
-  bucket = "${local.name_prefix}-example-bucket"
-
-  tags = local.default_tags
+# Get EKS cluster information
+data "aws_eks_cluster" "cluster" {
+  name = var.cluster_name
 }
 
-resource "aws_s3_bucket_versioning" "example" {
-  bucket = aws_s3_bucket.example.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
+# Get TLS certificate for OIDC provider
+data "tls_certificate" "cluster" {
+  url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "example" {
-  count  = var.enable_encryption ? 1 : 0
-  bucket = aws_s3_bucket.example.id
+# ================================
+# NAMESPACE
+# ================================
 
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+resource "kubernetes_namespace" "eso" {
+  count = var.create_namespace ? 1 : 0
+
+  metadata {
+    name = var.namespace
+    labels = {
+      name                           = var.namespace
+      "app.kubernetes.io/name"       = "external-secrets"
+      "app.kubernetes.io/instance"   = local.name_prefix
+      "app.kubernetes.io/component"  = "operator"
+      "app.kubernetes.io/part-of"    = "external-secrets"
+      "app.kubernetes.io/managed-by" = "terraform"
     }
   }
 }
 
-# Example IAM role (replace with your resources)
-resource "aws_iam_role" "example" {
-  name = "${local.name_prefix}-example-role"
+# ================================
+# IAM ROLE FOR SERVICE ACCOUNT (IRSA)
+# ================================
+
+# OIDC provider for EKS cluster (if not exists)
+resource "aws_iam_openid_connect_provider" "cluster" {
+  count = var.create_oidc_provider ? 1 : 0
+
+  url             = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.cluster.certificates[0].sha1_fingerprint]
+
+  tags = local.default_tags
+}
+
+# IAM role for ESO service account
+resource "aws_iam_role" "eso" {
+  name = "${local.name_prefix}-eso-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          Service = "ec2.amazonaws.com"
+          Federated = var.create_oidc_provider ? aws_iam_openid_connect_provider.cluster[0].arn : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${local.oidc_issuer_url}"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${local.oidc_issuer_url}:sub" = "system:serviceaccount:${var.namespace}:${local.service_account_name}"
+            "${local.oidc_issuer_url}:aud" = "sts.amazonaws.com"
+          }
         }
       }
     ]
@@ -87,56 +109,266 @@ resource "aws_iam_role" "example" {
   tags = local.default_tags
 }
 
-# Example CloudWatch Log Group (conditional)
-resource "aws_cloudwatch_log_group" "example" {
-  count = var.enable_monitoring ? 1 : 0
+# IAM policy for ESO to access AWS Secrets Manager and Parameter Store
+resource "aws_iam_role_policy" "eso_secrets_access" {
+  name = "${local.name_prefix}-eso-secrets-policy"
+  role = aws_iam_role.eso.id
 
-  name              = "/aws/example/${local.name_prefix}"
-  retention_in_days = 14
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      var.enable_secrets_manager ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetResourcePolicy",
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret",
+            "secretsmanager:ListSecretVersionIds",
+            "secretsmanager:ListSecrets"
+          ]
+          Resource = var.secrets_manager_arns
+        }
+      ] : [],
+      var.enable_parameter_store ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "ssm:GetParameter",
+            "ssm:GetParameters",
+            "ssm:GetParametersByPath",
+            "ssm:DescribeParameters"
+          ]
+          Resource = var.parameter_store_arns
+        }
+      ] : []
+    )
+  })
+}
 
-  tags = local.default_tags
+# ================================
+# SERVICE ACCOUNT
+# ================================
+
+resource "kubernetes_service_account" "eso" {
+  metadata {
+    name      = local.service_account_name
+    namespace = var.namespace
+    labels = {
+      "app.kubernetes.io/name"       = "external-secrets"
+      "app.kubernetes.io/instance"   = local.name_prefix
+      "app.kubernetes.io/component"  = "controller"
+      "app.kubernetes.io/part-of"    = "external-secrets"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.eso.arn
+    }
+  }
+
+  depends_on = [kubernetes_namespace.eso]
+}
+
+# ================================
+# EXTERNAL SECRETS OPERATOR HELM INSTALLATION
+# ================================
+
+resource "helm_release" "external_secrets" {
+  name       = "external-secrets"
+  repository = "https://charts.external-secrets.io"
+  chart      = "external-secrets"
+  version    = var.eso_version
+  namespace  = var.namespace
+
+  create_namespace = false # We manage namespace separately
+  timeout          = var.helm_timeout
+  cleanup_on_fail  = true
+  force_update     = false
+
+  values = [
+    yamlencode(merge({
+      # Service Account configuration
+      serviceAccount = {
+        create = false
+        name   = local.service_account_name
+      }
+
+      # Controller configuration
+      replicaCount = var.controller_replicas
+
+      # Resources
+      resources = {
+        requests = {
+          cpu    = "100m"
+          memory = "128Mi"
+        }
+        limits = {
+          cpu    = "500m"
+          memory = "512Mi"
+        }
+      }
+
+      # Security context
+      securityContext = {
+        runAsNonRoot             = true
+        runAsUser                = 65534
+        allowPrivilegeEscalation = false
+        readOnlyRootFilesystem   = true
+        capabilities = {
+          drop = ["ALL"]
+        }
+      }
+
+      # Pod security context
+      podSecurityContext = {
+        fsGroup      = 65534
+        runAsNonRoot = true
+        runAsUser    = 65534
+      }
+
+      # Install CRDs
+      installCRDs = true
+
+      # Metrics
+      metrics = {
+        service = {
+          enabled = var.enable_metrics
+          port    = 8080
+        }
+      }
+
+      # Webhook configuration
+      webhook = {
+        port = 9443
+      }
+
+      # Node selector and affinity
+      nodeSelector = var.node_selector
+      affinity     = var.affinity
+      tolerations  = var.tolerations
+
+    }, var.helm_values))
+  ]
+
+  depends_on = [
+    kubernetes_namespace.eso,
+    kubernetes_service_account.eso
+  ]
+}
+
+# ================================
+# CLUSTER SECRET STORE
+# ================================
+
+resource "kubectl_manifest" "cluster_secret_store_sm" {
+  count = var.enable_secrets_manager && var.create_cluster_secret_store ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ClusterSecretStore"
+    metadata = {
+      name = "aws-secrets-manager"
+      labels = {
+        "app.kubernetes.io/name"       = "external-secrets"
+        "app.kubernetes.io/instance"   = local.name_prefix
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+    }
+    spec = {
+      provider = {
+        aws = {
+          service = "SecretsManager"
+          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.name
+          auth = {
+            jwt = {
+              serviceAccountRef = {
+                name = local.service_account_name
+                namespace = var.namespace
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  depends_on = [helm_release.external_secrets]
+}
+
+resource "kubectl_manifest" "cluster_secret_store_ps" {
+  count = var.enable_parameter_store && var.create_cluster_secret_store ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ClusterSecretStore"
+    metadata = {
+      name = "aws-parameter-store"
+      labels = {
+        "app.kubernetes.io/name"       = "external-secrets"
+        "app.kubernetes.io/instance"   = local.name_prefix
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+    }
+    spec = {
+      provider = {
+        aws = {
+          service = "ParameterStore"
+          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.name
+          auth = {
+            jwt = {
+              serviceAccountRef = {
+                name = local.service_account_name
+                namespace = var.namespace
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  depends_on = [helm_release.external_secrets]
+}
+
+# ================================
+# WAIT FOR DEPLOYMENT
+# ================================
+
+resource "null_resource" "wait_for_eso" {
+  count = var.wait_for_rollout ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for External Secrets Operator to be ready..."
+      kubectl wait --for=condition=available --timeout=300s deployment/external-secrets -n ${var.namespace}
+      kubectl wait --for=condition=available --timeout=300s deployment/external-secrets-webhook -n ${var.namespace}
+      echo "External Secrets Operator is ready!"
+    EOT
+  }
+
+  depends_on = [helm_release.external_secrets]
 }
 
 # ================================
 # VALIDATION RESOURCES
 # ================================
-# Use null_resource for module-level validations
 
 resource "null_resource" "validate_configuration" {
-  # Add lifecycle preconditions for complex validations
   lifecycle {
     precondition {
-      condition     = var.example_config.count_limit > 0
-      error_message = "Count limit must be greater than 0."
+      condition     = var.enable_secrets_manager || var.enable_parameter_store
+      error_message = "At least one of Secrets Manager or Parameter Store must be enabled."
     }
 
     precondition {
-      condition     = length(var.name) <= 20 || !var.enable_monitoring
-      error_message = "When monitoring is enabled, name must be <= 20 characters to avoid resource name limits."
+      condition     = var.enable_secrets_manager == false || length(var.secrets_manager_arns) > 0
+      error_message = "Secrets Manager ARNs must be provided when Secrets Manager is enabled."
+    }
+
+    precondition {
+      condition     = var.enable_parameter_store == false || length(var.parameter_store_arns) > 0
+      error_message = "Parameter Store ARNs must be provided when Parameter Store is enabled."
     }
   }
 }
 
-# ================================
-# TEMPLATE NOTES
-# ================================
-#
-# Main.tf Best Practices:
-# 1. Use locals for computed values and naming conventions
-# 2. Merge default tags with user tags using merge()
-# 3. Use data sources for dynamic AWS information
-# 4. Group related resources with comments
-# 5. Use conditional resources with count/for_each
-# 6. Include validation with null_resource and preconditions
-# 7. Follow consistent naming patterns
-# 8. Use meaningful resource names
-#
-# AWS Resource Patterns:
-# - Always tag resources appropriately
-# - Enable encryption by default where possible
-# - Use least privilege IAM policies
-# - Follow AWS naming conventions
-# - Consider resource limits and quotas
-# - Use data sources for dynamic values
-#
-# Remove this comment block in your actual module.

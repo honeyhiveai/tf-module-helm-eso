@@ -1,25 +1,33 @@
-# Basic Example - AWS Terraform Module Template
-# This example demonstrates the minimal configuration required to use this module
+# Basic ESO Example
+# Minimal configuration for External Secrets Operator on EKS
 
-module "aws_example" {
+module "eso" {
   source = "../.."
 
   # Required variables
-  name = "basic-example"
+  name         = "honeyhive"
+  environment  = "dev"
+  cluster_name = "honeyhive-dev-usw2"
 
-  # Optional variables with common settings
-  environment = "dev"
+  # AWS Secrets Manager configuration
+  enable_secrets_manager = true
+  secrets_manager_arns   = ["*"] # Allow access to all secrets - restrict in production
 
-  # Note: example_setting removed from template - add your actual variables here
+  # Optional: Parameter Store (disabled in basic example)
+  enable_parameter_store = false
 
-  # Basic feature flags
-  enable_monitoring = true
-  enable_encryption = true
+  # Basic ESO configuration
+  eso_version         = "0.9.11"
+  controller_replicas = 1
+
+  # Create the necessary cluster secret stores
+  create_cluster_secret_store = true
 
   # Tags
   tags = {
-    Project = "terraform-module-template"
-    Example = "basic"
-    Owner   = "platform-team"
+    Project   = "HoneyHive"
+    Layer     = "platform"
+    Example   = "basic"
+    ManagedBy = "terraform"
   }
 }

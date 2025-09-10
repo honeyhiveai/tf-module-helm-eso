@@ -1,5 +1,5 @@
-# Input Variables for AWS Terraform Module Template
-# This file contains common patterns and examples for AWS module variables
+# Input Variables for External Secrets Operator Terraform Module
+# Comprehensive configuration for ESO deployment on EKS
 
 # ================================
 # REQUIRED VARIABLES
@@ -20,16 +20,9 @@ variable "name" {
   }
 }
 
-# ================================
-# COMMON AWS PATTERNS
-# ================================
-
-# Note: Add region-specific variables here if your module needs them
-
 variable "environment" {
-  description = "Environment name (e.g., dev, staging, prod)."
+  description = "Environment name (e.g., dev, test, stage, prod)."
   type        = string
-  default     = "dev"
 
   validation {
     condition = contains([
@@ -41,6 +34,176 @@ variable "environment" {
     error_message = "Environment must be one of: dev, development, test, testing, stage, staging, prod, production."
   }
 }
+
+variable "cluster_name" {
+  description = "Name of the EKS cluster where External Secrets Operator will be deployed."
+  type        = string
+
+  validation {
+    condition     = length(var.cluster_name) > 0
+    error_message = "Cluster name cannot be empty."
+  }
+}
+
+# ================================
+# AWS CONFIGURATION
+# ================================
+
+variable "aws_region" {
+  description = "AWS region for secrets access. If not specified, uses current provider region."
+  type        = string
+  default     = null
+}
+
+variable "secrets_manager_arns" {
+  description = "List of AWS Secrets Manager ARNs that ESO can access. Use ['*'] for all secrets."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.secrets_manager_arns :
+      can(regex("^(arn:aws:secretsmanager:[a-z0-9-]+:[0-9]+:secret:[a-zA-Z0-9/_.-]+|\\*)$", arn))
+    ])
+    error_message = "Each Secrets Manager ARN must be valid or use '*' for all secrets."
+  }
+}
+
+variable "parameter_store_arns" {
+  description = "List of AWS Systems Manager Parameter Store ARNs that ESO can access. Use ['*'] for all parameters."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.parameter_store_arns :
+      can(regex("^(arn:aws:ssm:[a-z0-9-]+:[0-9]+:parameter/.*|\\*)$", arn))
+    ])
+    error_message = "Each Parameter Store ARN must be valid or use '*' for all parameters."
+  }
+}
+
+# ================================
+# ESO CONFIGURATION
+# ================================
+
+variable "namespace" {
+  description = "Kubernetes namespace for External Secrets Operator installation."
+  type        = string
+  default     = "external-secrets"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.namespace))
+    error_message = "Namespace must contain only lowercase letters, numbers, and hyphens."
+  }
+}
+
+variable "eso_version" {
+  description = "Version of the External Secrets Operator Helm chart to deploy."
+  type        = string
+  default     = "0.9.11"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.eso_version))
+    error_message = "ESO version must be in semantic version format (e.g., 0.9.11)."
+  }
+}
+
+variable "controller_replicas" {
+  description = "Number of External Secrets Operator controller replicas."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.controller_replicas >= 1 && var.controller_replicas <= 10
+    error_message = "Controller replicas must be between 1 and 10."
+  }
+}
+
+# ================================
+# IRSA CONFIGURATION
+# ================================
+
+variable "create_oidc_provider" {
+  description = "Whether to create the OIDC provider. Set to false if it already exists."
+  type        = bool
+  default     = false
+}
+
+# ================================
+# SECRET STORE CONFIGURATION
+# ================================
+
+variable "enable_secrets_manager" {
+  description = "Whether to enable AWS Secrets Manager integration."
+  type        = bool
+  default     = true
+}
+
+variable "enable_parameter_store" {
+  description = "Whether to enable AWS Systems Manager Parameter Store integration."
+  type        = bool
+  default     = false
+}
+
+variable "create_cluster_secret_store" {
+  description = "Whether to create ClusterSecretStore resources for AWS integration."
+  type        = bool
+  default     = true
+}
+
+# ================================
+# HELM CHART CONFIGURATION
+# ================================
+
+variable "helm_values" {
+  description = "Additional Helm values to override ESO chart defaults."
+  type        = any
+  default     = {}
+}
+
+variable "create_namespace" {
+  description = "Whether to create the ESO namespace."
+  type        = bool
+  default     = true
+}
+
+variable "helm_timeout" {
+  description = "Timeout for Helm chart installation (in seconds)."
+  type        = number
+  default     = 600
+
+  validation {
+    condition     = var.helm_timeout >= 300 && var.helm_timeout <= 1800
+    error_message = "Helm timeout must be between 300 and 1800 seconds."
+  }
+}
+
+# ================================
+# KUBERNETES CONFIGURATION
+# ================================
+
+variable "node_selector" {
+  description = "Node selector for ESO pods."
+  type        = map(string)
+  default     = {}
+}
+
+variable "affinity" {
+  description = "Affinity settings for ESO pods."
+  type        = any
+  default     = {}
+}
+
+variable "tolerations" {
+  description = "Tolerations for ESO pods."
+  type        = list(any)
+  default     = []
+}
+
+# ================================
+# RESOURCE MANAGEMENT
+# ================================
 
 variable "tags" {
   description = "Additional tags to apply to all resources."
@@ -57,64 +220,19 @@ variable "tags" {
 }
 
 # ================================
-# MODULE-SPECIFIC VARIABLES
-# ================================
-# Replace this section with variables specific to your AWS service/resource
-
-# Note: Add your module-specific variables here
-
-variable "example_config" {
-  description = "Example complex configuration object. Replace with actual module configuration."
-  type = object({
-    enabled     = optional(bool, true)
-    size        = optional(string, "small")
-    settings    = optional(map(string), {})
-    count_limit = optional(number, 5)
-  })
-  default = {}
-
-  validation {
-    condition     = var.example_config.count_limit >= 1 && var.example_config.count_limit <= 100
-    error_message = "Count limit must be between 1 and 100."
-  }
-}
-
-# ================================
 # FEATURE FLAGS
 # ================================
 
-variable "enable_monitoring" {
-  description = "Whether to enable monitoring and logging features."
+variable "enable_metrics" {
+  description = "Whether to enable Prometheus metrics for ESO."
   type        = bool
   default     = true
 }
 
-variable "enable_encryption" {
-  description = "Whether to enable encryption for applicable resources."
+variable "wait_for_rollout" {
+  description = "Whether to wait for ESO to be fully ready before completing deployment."
   type        = bool
   default     = true
 }
 
-# ================================
-# TEMPLATE NOTES
-# ================================
-#
-# Variable Best Practices:
-# 1. Always include description and type
-# 2. Use validation blocks for constrained values
-# 3. Provide sensible defaults for optional variables
-# 4. Group related variables with comments
-# 5. Use consistent naming conventions (snake_case)
-# 6. Document complex object types clearly
-# 7. Consider using optional() for flexible configurations
-#
-# Common AWS Variable Patterns:
-# - Resource naming (name, prefix, suffix)
-# - Tagging (tags, default_tags)
-# - Region and AZ selection
-# - Security settings (encryption, access control)
-# - Feature toggles (enable_*)
-# - Sizing and scaling parameters
-# - Network configuration (subnets, security groups)
-#
-# Remove this comment block in your actual module.
+

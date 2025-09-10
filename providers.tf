@@ -1,5 +1,5 @@
 # Terraform and Provider Version Requirements
-# This file defines the minimum versions for Terraform and required providers
+# Required providers for External Secrets Operator Helm deployment on EKS
 
 terraform {
   required_version = ">= 1.8.0"
@@ -10,36 +10,37 @@ terraform {
       version = "~> 6.0"
     }
 
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
+
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
+    }
+
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.0"
+    }
+
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+
     null = {
       source  = "hashicorp/null"
       version = "~> 3.1"
     }
-
-    # Add other providers as needed for your specific module
-    # random = {
-    #   source  = "hashicorp/random"
-    #   version = "~> 3.1"
-    # }
-    #
-    # tls = {
-    #   source  = "hashicorp/tls"
-    #   version = "~> 4.0"
-    # }
   }
 }
 
-# AWS Provider Configuration
-# Note: Avoid configuring provider settings in modules
-# Let the root module/consumer configure the provider
-# provider "aws" {
-#   region = var.aws_region
-#
-#   default_tags {
-#     tags = var.default_tags
-#   }
-# }
-
-# Template Note:
-# - Keep provider version constraints updated
-# - Remove unused providers
-# - Let consuming modules configure provider settings
+# Provider Configuration Notes:
+# - AWS provider: Used for IAM roles, OIDC providers, and data sources
+# - Helm provider: For ESO chart installation
+# - Kubernetes provider: For namespaces and service accounts
+# - kubectl provider: For ClusterSecretStore CRDs
+# - TLS provider: For OIDC certificate validation
+# - Let the root module configure provider settings and authentication
