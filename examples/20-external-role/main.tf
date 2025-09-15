@@ -51,7 +51,7 @@ output "external_role_info" {
   description = "Information about the external role configuration"
   value = {
     external_role_arn = var.external_eso_role_arn
-    role_created     = module.eso.iam_role_created
-    auth_mode        = module.eso.authentication_mode
+    role_created      = module.eso.iam_role_created
+    auth_mode         = module.eso.authentication_mode
   }
 }

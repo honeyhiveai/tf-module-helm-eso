@@ -148,7 +148,7 @@ variable "external_iam_role_arn" {
   default     = null
 
   validation {
-    condition = var.external_iam_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.+", var.external_iam_role_arn))
+    condition     = var.external_iam_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.+", var.external_iam_role_arn))
     error_message = "External IAM role ARN must be a valid IAM role ARN format."
   }
 }

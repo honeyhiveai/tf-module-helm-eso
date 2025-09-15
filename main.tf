@@ -106,7 +106,7 @@ resource "aws_iam_role" "eso" {
             "aws:SourceArn" = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:podidentityassociation/${var.cluster_name}/*"
           }
         }
-      } : {
+        } : {
         # IRSA trust policy for Fargate workloads
         Effect = "Allow"
         Principal = {
@@ -174,7 +174,7 @@ resource "aws_eks_pod_identity_association" "eso" {
   cluster_name    = var.cluster_name
   namespace       = var.namespace
   service_account = local.service_account_name
-  role_arn       = local.iam_role_arn
+  role_arn        = local.iam_role_arn
 
   tags = local.default_tags
 }
@@ -316,7 +316,7 @@ resource "kubectl_manifest" "cluster_secret_store_sm" {
           auth = {
             jwt = {
               serviceAccountRef = {
-                name = local.service_account_name
+                name      = local.service_account_name
                 namespace = var.namespace
               }
             }
@@ -351,7 +351,7 @@ resource "kubectl_manifest" "cluster_secret_store_ps" {
           auth = {
             jwt = {
               serviceAccountRef = {
-                name = local.service_account_name
+                name      = local.service_account_name
                 namespace = var.namespace
               }
             }

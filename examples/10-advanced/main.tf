@@ -39,7 +39,7 @@ module "eso" {
 
   # Kubernetes configuration
   create_namespace = true
-  namespace       = "external-secrets"
+  namespace        = "external-secrets"
 
   # Production helm values override
   helm_values = {
@@ -53,7 +53,7 @@ module "eso" {
         memory = "512Mi"
       }
     }
-    
+
     # Pod disruption budget for high availability
     podDisruptionBudget = {
       enabled      = true
@@ -90,7 +90,7 @@ module "eso" {
   # Feature flags
   enable_metrics              = true
   create_cluster_secret_store = true
-  wait_for_rollout           = true
+  wait_for_rollout            = true
 
   # Comprehensive tagging
   tags = {

@@ -3,7 +3,7 @@
 variable "external_eso_role_arn" {
   description = "ARN of the externally managed IAM role for ESO"
   type        = string
-  
+
   # Example: "arn:aws:iam::123456789012:role/HoneyHive-ESO-Role"
   validation {
     condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/.+", var.external_eso_role_arn))

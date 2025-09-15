@@ -118,15 +118,15 @@ output "aws_account_id" {
 output "module_configuration" {
   description = "Summary of the ESO module configuration."
   value = {
-    name                        = var.name
-    environment                 = var.environment
-    namespace                   = var.namespace
-    eso_version                 = var.eso_version
-    controller_replicas         = var.controller_replicas
-    secrets_manager_enabled     = var.enable_secrets_manager
-    parameter_store_enabled     = var.enable_parameter_store
+    name                         = var.name
+    environment                  = var.environment
+    namespace                    = var.namespace
+    eso_version                  = var.eso_version
+    controller_replicas          = var.controller_replicas
+    secrets_manager_enabled      = var.enable_secrets_manager
+    parameter_store_enabled      = var.enable_parameter_store
     cluster_secret_store_created = var.create_cluster_secret_store
-    metrics_enabled             = var.enable_metrics
+    metrics_enabled              = var.enable_metrics
   }
 }
 
@@ -187,10 +187,10 @@ output "features_enabled" {
     secrets_manager       = var.enable_secrets_manager
     parameter_store       = var.enable_parameter_store
     cluster_secret_stores = var.create_cluster_secret_store
-    metrics              = var.enable_metrics
-    pod_identity         = var.use_pod_identity
-    oidc_provider        = var.create_oidc_provider
-    iam_role_created     = var.create_iam_role
+    metrics               = var.enable_metrics
+    pod_identity          = var.use_pod_identity
+    oidc_provider         = var.create_oidc_provider
+    iam_role_created      = var.create_iam_role
   }
 }
 

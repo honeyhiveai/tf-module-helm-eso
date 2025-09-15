@@ -23,7 +23,7 @@ output "pod_identity_association_arn" {
 output "cluster_secret_stores" {
   description = "Names of the ClusterSecretStores created."
   value = {
-    secrets_manager  = module.eso.cluster_secret_store_secrets_manager
+    secrets_manager = module.eso.cluster_secret_store_secrets_manager
     parameter_store = module.eso.cluster_secret_store_parameter_store
   }
 }
@@ -58,7 +58,7 @@ output "external_role_requirements" {
     trust_policy_note = "External role must trust either 'pods.eks.amazonaws.com' (Pod Identity) or the OIDC provider (IRSA)"
     required_permissions = [
       "secretsmanager:GetResourcePolicy",
-      "secretsmanager:GetSecretValue", 
+      "secretsmanager:GetSecretValue",
       "secretsmanager:DescribeSecret",
       "secretsmanager:ListSecretVersionIds",
       "ssm:GetParameter",

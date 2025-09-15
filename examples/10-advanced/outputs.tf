@@ -13,7 +13,7 @@ output "eso_iam_role_arn" {
 output "cluster_secret_stores" {
   description = "Names of the ClusterSecretStores created."
   value = {
-    secrets_manager  = module.eso.cluster_secret_store_secrets_manager
+    secrets_manager = module.eso.cluster_secret_store_secrets_manager
     parameter_store = module.eso.cluster_secret_store_parameter_store
   }
 }
