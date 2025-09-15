@@ -87,7 +87,7 @@ jobs:
       - name: Run Checkov Security Analysis
         run: |
           set +e  # Allow checkov to fail so we can capture output
-          checkov --framework terraform --directory . --output json --output-file-path checkov-results.json
+          checkov --config-file .checkov.yml --framework terraform --directory . --output json > checkov-results.json
           CHECKOV_EXIT_CODE=$?
           set -e
           
