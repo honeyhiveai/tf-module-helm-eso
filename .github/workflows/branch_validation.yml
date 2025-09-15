@@ -331,8 +331,37 @@ jobs:
       - name: Terraform plan (${{ matrix.example-directory }})
         run: |
           cd ${{ matrix.example-directory }}
+          
+          # Create temporary provider configuration for validation
+          cat > validation-providers.tf << 'EOF'
+          # Temporary provider overrides for GitHub Actions validation
+          # This prevents connection attempts to real EKS clusters during validation
+          
+          provider "aws" {
+            region = "${{ vars.AWS_REGION || 'us-east-1' }}"
+          }
+          
+          provider "helm" {
+            kubernetes {
+              config_path = "/dev/null" # Prevents connection attempts during validation
+            }
+          }
+          
+          provider "kubernetes" {
+            config_path = "/dev/null" # Prevents connection attempts during validation
+          }
+          
+          provider "kubectl" {
+            config_path = "/dev/null" # Prevents connection attempts during validation
+            load_config_file = false
+          }
+          EOF
+          
           terraform init -backend=false
           terraform plan -no-color -detailed-exitcode
+          
+          # Clean up temporary file
+          rm -f validation-providers.tf
         # Continue on error to allow other examples to run
         continue-on-error: true
 
