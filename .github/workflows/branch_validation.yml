@@ -340,7 +340,7 @@ jobs:
 #
 # Required Repository Variables (configure in GitHub repository settings):
 # - AWS_ACCOUNT_ID: Your AWS account ID for OIDC authentication
-# - AWS_REGION: Default AWS region for examples (e.g., us-east-1)
+# - AWS_REGION: Default AWS region for examples (e.g., us-west-2)
 # - AWS_OIDC_ROLE_NAME: Name of the GitHub Actions OIDC role
 #
 # Optional: Remove AWS OIDC authentication if not needed
