@@ -329,6 +329,15 @@ jobs:
         continue-on-error: true
 
       - name: Terraform plan (${{ matrix.example-directory }})
+        env:
+          # Skip AWS credential validation for syntax-only validation
+          AWS_SKIP_CREDENTIALS_VALIDATION: true
+          AWS_SKIP_METADATA_API_CHECK: true
+          AWS_EC2_METADATA_DISABLED: true
+          # Provide dummy credentials to prevent credential errors
+          AWS_ACCESS_KEY_ID: "dummy"
+          AWS_SECRET_ACCESS_KEY: "dummy"
+          AWS_DEFAULT_REGION: "${{ vars.AWS_REGION || 'us-east-1' }}"
         run: |
           cd ${{ matrix.example-directory }}
           
@@ -368,7 +377,12 @@ jobs:
           }
           
           provider "aws" {
-            region = "${{ vars.AWS_REGION || 'us-east-1' }}"
+            region                      = "${{ vars.AWS_REGION || 'us-east-1' }}"
+            skip_credentials_validation = true
+            skip_metadata_api_check     = true
+            skip_region_validation      = true
+            access_key                  = "dummy"
+            secret_key                  = "dummy"
           }
           
           provider "helm" {
