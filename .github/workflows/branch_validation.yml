@@ -261,7 +261,7 @@ jobs:
             echo "example-directories=[]" >> $GITHUB_OUTPUT
           else
             # Convert to JSON array, removing trailing slashes
-            EXAMPLES_JSON=$(printf '%s\n' "${EXAMPLES[@]%/}" | jq -R . | jq -s .)
+            EXAMPLES_JSON=$(printf '%s\n' "${EXAMPLES[@]%/}" | jq -R . | jq -s -c .)
             echo "Found examples: $EXAMPLES_JSON"
             echo "example-directories=$EXAMPLES_JSON" >> $GITHUB_OUTPUT
           fi
