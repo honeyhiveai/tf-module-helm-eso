@@ -318,15 +318,15 @@ jobs:
         id: short-name
         run: echo "short=$(basename '${{ matrix.example-directory }}')" >> $GITHUB_OUTPUT
 
-      # Configure AWS credentials using OIDC (requires repository setup)
-      # Remove or modify this step if not using AWS OIDC authentication
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_OIDC_ROLE_NAME }}
-          aws-region: ${{ vars.AWS_REGION }}
-        # Skip this step if AWS variables are not configured
-        continue-on-error: true
+      # Skip AWS credentials configuration for syntax-only validation
+      # The terraform plan step has its own credential skipping mechanism
+      # - name: Configure AWS credentials (OIDC)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.AWS_OIDC_ROLE_NAME }}
+      #     aws-region: ${{ vars.AWS_REGION }}
+      #   # Skip this step if AWS variables are not configured
+      #   continue-on-error: true
 
       - name: Terraform plan (${{ matrix.example-directory }})
         env:
