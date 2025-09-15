@@ -46,8 +46,8 @@ jobs:
         with:
           # Your config controls formatter/sections/output/inject/template
           config-file: .terraform-docs.yml
-          # Comma-separated list of module dirs to render
-          working-dir: .,subnets,endpoints,flow_logs
+          # Comma-separated list of module dirs to render (ESO module only has root)
+          working-dir: .
           # Let config decide output-method/file; pass empty to defer to config
           output-method: ""
           output-file: ""
@@ -87,7 +87,7 @@ jobs:
       - name: Run Checkov Security Analysis
         run: |
           set +e  # Allow checkov to fail so we can capture output
-          checkov --framework terraform --directory . --output json --output-file-path checkov-results.json
+          checkov --config-file .checkov.yml --framework terraform --directory . --output json > checkov-results.json
           CHECKOV_EXIT_CODE=$?
           set -e
           
