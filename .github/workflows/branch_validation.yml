@@ -332,10 +332,40 @@ jobs:
         run: |
           cd ${{ matrix.example-directory }}
           
+          # Temporarily rename existing provider.tf to avoid conflicts
+          if [ -f provider.tf ]; then
+            mv provider.tf provider.tf.backup
+          fi
+          
           # Create temporary provider configuration for validation
-          cat > validation-providers.tf << 'EOF'
-          # Temporary provider overrides for GitHub Actions validation
+          cat > provider.tf << 'EOF'
+          # Temporary provider configuration for GitHub Actions validation
           # This prevents connection attempts to real EKS clusters during validation
+          
+          terraform {
+            required_providers {
+              aws = {
+                source  = "hashicorp/aws"
+                version = "~> 6.0"
+              }
+              helm = {
+                source  = "hashicorp/helm"
+                version = "~> 2.0"
+              }
+              kubernetes = {
+                source  = "hashicorp/kubernetes"
+                version = "~> 2.0"
+              }
+              kubectl = {
+                source  = "gavinbunney/kubectl"
+                version = "~> 1.0"
+              }
+              tls = {
+                source  = "hashicorp/tls"
+                version = "~> 4.0"
+              }
+            }
+          }
           
           provider "aws" {
             region = "${{ vars.AWS_REGION || 'us-east-1' }}"
@@ -360,8 +390,11 @@ jobs:
           terraform init -backend=false
           terraform plan -no-color -detailed-exitcode
           
-          # Clean up temporary file
-          rm -f validation-providers.tf
+          # Restore original provider.tf
+          rm -f provider.tf
+          if [ -f provider.tf.backup ]; then
+            mv provider.tf.backup provider.tf
+          fi
         # Continue on error to allow other examples to run
         continue-on-error: true
 
