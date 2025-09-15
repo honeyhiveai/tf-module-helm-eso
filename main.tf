@@ -26,6 +26,9 @@ locals {
 
   # OIDC issuer URL from EKS cluster
   oidc_issuer_url = replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")
+
+  # IAM role ARN - use external role if provided, otherwise use created role
+  iam_role_arn = var.create_iam_role ? aws_iam_role.eso[0].arn : var.external_iam_role_arn
 }
 
 # ================================
@@ -85,12 +88,26 @@ resource "aws_iam_openid_connect_provider" "cluster" {
 
 # IAM role for ESO service account
 resource "aws_iam_role" "eso" {
-  name = "${local.name_prefix}-eso-role"
+  count = var.create_iam_role ? 1 : 0
+  name  = "${local.name_prefix}-eso-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      {
+      var.use_pod_identity ? {
+        # Pod Identity trust policy for EC2 workloads
+        Effect = "Allow"
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:podidentityassociation/${var.cluster_name}/*"
+          }
+        }
+      } : {
+        # IRSA trust policy for Fargate workloads
         Effect = "Allow"
         Principal = {
           Federated = var.create_oidc_provider ? aws_iam_openid_connect_provider.cluster[0].arn : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${local.oidc_issuer_url}"
@@ -111,8 +128,9 @@ resource "aws_iam_role" "eso" {
 
 # IAM policy for ESO to access AWS Secrets Manager and Parameter Store
 resource "aws_iam_role_policy" "eso_secrets_access" {
-  name = "${local.name_prefix}-eso-secrets-policy"
-  role = aws_iam_role.eso.id
+  count = var.create_iam_role ? 1 : 0
+  name  = "${local.name_prefix}-eso-secrets-policy"
+  role  = aws_iam_role.eso[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -147,6 +165,21 @@ resource "aws_iam_role_policy" "eso_secrets_access" {
 }
 
 # ================================
+# POD IDENTITY ASSOCIATION
+# ================================
+
+resource "aws_eks_pod_identity_association" "eso" {
+  count = var.use_pod_identity ? 1 : 0
+
+  cluster_name    = var.cluster_name
+  namespace       = var.namespace
+  service_account = local.service_account_name
+  role_arn       = local.iam_role_arn
+
+  tags = local.default_tags
+}
+
+# ================================
 # SERVICE ACCOUNT
 # ================================
 
@@ -161,8 +194,9 @@ resource "kubernetes_service_account" "eso" {
       "app.kubernetes.io/part-of"    = "external-secrets"
       "app.kubernetes.io/managed-by" = "terraform"
     }
-    annotations = {
-      "eks.amazonaws.com/role-arn" = aws_iam_role.eso.arn
+    # Only add IRSA annotation when not using Pod Identity
+    annotations = var.use_pod_identity ? {} : {
+      "eks.amazonaws.com/role-arn" = local.iam_role_arn
     }
   }
 
@@ -368,6 +402,21 @@ resource "null_resource" "validate_configuration" {
     precondition {
       condition     = var.enable_parameter_store == false || length(var.parameter_store_arns) > 0
       error_message = "Parameter Store ARNs must be provided when Parameter Store is enabled."
+    }
+
+    precondition {
+      condition     = var.use_pod_identity == true || var.create_oidc_provider == true || data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer != null
+      error_message = "When using IRSA (use_pod_identity=false), either create_oidc_provider must be true or OIDC provider must already exist on the cluster."
+    }
+
+    precondition {
+      condition     = var.create_iam_role == true || var.external_iam_role_arn != null
+      error_message = "When create_iam_role is false, external_iam_role_arn must be provided."
+    }
+
+    precondition {
+      condition     = var.create_iam_role == false || var.external_iam_role_arn == null
+      error_message = "Cannot specify external_iam_role_arn when create_iam_role is true. Choose either created or external role."
     }
   }
 }

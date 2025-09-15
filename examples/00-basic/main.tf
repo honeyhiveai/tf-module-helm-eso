@@ -1,5 +1,5 @@
 # Basic ESO Example
-# Minimal configuration for External Secrets Operator on EKS
+# Minimal configuration with IRSA authentication (recommended for Fargate workloads)
 
 module "eso" {
   source = "../.."
@@ -8,6 +8,9 @@ module "eso" {
   name         = "honeyhive"
   environment  = "dev"
   cluster_name = "honeyhive-dev-usw2"
+
+  # Authentication: Use IRSA for Fargate workloads (default)
+  use_pod_identity = false # Use Pod Identity (true) for EC2/Karpenter workloads
 
   # AWS Secrets Manager configuration
   enable_secrets_manager = true

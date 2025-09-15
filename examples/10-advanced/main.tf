@@ -1,5 +1,5 @@
 # Advanced ESO Example
-# Production-ready configuration with both Secrets Manager and Parameter Store
+# Production-ready configuration with Pod Identity (recommended for EC2/Karpenter workloads)
 
 module "eso" {
   source = "../.."
@@ -11,6 +11,9 @@ module "eso" {
 
   # AWS region override
   aws_region = "us-west-2"
+
+  # Authentication: Use Pod Identity for EC2/Karpenter workloads
+  use_pod_identity = true
 
   # AWS Secrets Manager configuration
   enable_secrets_manager = true
@@ -31,8 +34,8 @@ module "eso" {
   eso_version         = "0.9.11"
   controller_replicas = 2 # High availability
 
-  # IRSA configuration
-  create_oidc_provider = false # Assuming OIDC provider already exists
+  # Pod Identity configuration (no OIDC provider needed)
+  create_oidc_provider = false # Not needed when using Pod Identity
 
   # Kubernetes configuration
   create_namespace = true

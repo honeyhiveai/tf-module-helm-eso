@@ -30,13 +30,18 @@ output "eso_version" {
 # ================================
 
 output "eso_iam_role_arn" {
-  description = "The ARN of the IAM role for ESO service account."
-  value       = aws_iam_role.eso.arn
+  description = "The ARN of the IAM role for ESO service account (created or external)."
+  value       = local.iam_role_arn
 }
 
 output "eso_iam_role_name" {
-  description = "The name of the IAM role for ESO service account."
-  value       = aws_iam_role.eso.name
+  description = "The name of the IAM role for ESO service account (if created by module)."
+  value       = var.create_iam_role ? aws_iam_role.eso[0].name : null
+}
+
+output "iam_role_created" {
+  description = "Whether the IAM role was created by this module or externally managed."
+  value       = var.create_iam_role
 }
 
 output "service_account_name" {
@@ -45,8 +50,18 @@ output "service_account_name" {
 }
 
 output "oidc_provider_arn" {
-  description = "The ARN of the OIDC provider (if created)."
-  value       = var.create_oidc_provider ? aws_iam_openid_connect_provider.cluster[0].arn : null
+  description = "The ARN of the OIDC provider (if created for IRSA)."
+  value       = var.create_oidc_provider && !var.use_pod_identity ? aws_iam_openid_connect_provider.cluster[0].arn : null
+}
+
+output "pod_identity_association_arn" {
+  description = "The ARN of the Pod Identity Association (if created for Pod Identity)."
+  value       = var.use_pod_identity ? try(aws_eks_pod_identity_association.eso[0].association_arn, null) : null
+}
+
+output "authentication_mode" {
+  description = "The authentication mode being used (pod-identity or irsa)."
+  value       = var.use_pod_identity ? "pod-identity" : "irsa"
 }
 
 # ================================
@@ -173,7 +188,9 @@ output "features_enabled" {
     parameter_store       = var.enable_parameter_store
     cluster_secret_stores = var.create_cluster_secret_store
     metrics              = var.enable_metrics
+    pod_identity         = var.use_pod_identity
     oidc_provider        = var.create_oidc_provider
+    iam_role_created     = var.create_iam_role
   }
 }
 

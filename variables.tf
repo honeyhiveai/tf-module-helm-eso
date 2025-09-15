@@ -121,13 +121,36 @@ variable "controller_replicas" {
 }
 
 # ================================
-# IRSA CONFIGURATION
+# AUTHENTICATION CONFIGURATION
 # ================================
 
-variable "create_oidc_provider" {
-  description = "Whether to create the OIDC provider. Set to false if it already exists."
+variable "use_pod_identity" {
+  description = "Whether to use EKS Pod Identity instead of IRSA. Recommended for EC2 workloads, use false for Fargate."
   type        = bool
   default     = false
+}
+
+variable "create_oidc_provider" {
+  description = "Whether to create the OIDC provider. Only used when use_pod_identity is false (IRSA mode)."
+  type        = bool
+  default     = false
+}
+
+variable "create_iam_role" {
+  description = "Whether to create the IAM role for ESO. Set to false to use an externally managed role."
+  type        = bool
+  default     = true
+}
+
+variable "external_iam_role_arn" {
+  description = "ARN of an externally managed IAM role to use for ESO. Only used when create_iam_role is false."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.external_iam_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.+", var.external_iam_role_arn))
+    error_message = "External IAM role ARN must be a valid IAM role ARN format."
+  }
 }
 
 # ================================
