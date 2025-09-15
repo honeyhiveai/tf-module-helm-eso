@@ -11,4 +11,5 @@
 # Example:
 # AVD-AWS-0089   # ECS task definition allows privilege escalation; required for specific use case
 
-# Template Note: Remove this comment block and add actual exceptions as needed
+# External Secrets Operator Compliance Exceptions
+AVD-AWS-0057 # ESO requires secretsmanager:GetResourcePolicy for secret discovery - necessary for ESO functionality
