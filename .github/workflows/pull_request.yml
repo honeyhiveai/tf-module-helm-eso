@@ -46,8 +46,8 @@ jobs:
         with:
           # Your config controls formatter/sections/output/inject/template
           config-file: .terraform-docs.yml
-          # Comma-separated list of module dirs to render
-          working-dir: .,subnets,endpoints,flow_logs
+          # Comma-separated list of module dirs to render (ESO module only has root)
+          working-dir: .
           # Let config decide output-method/file; pass empty to defer to config
           output-method: ""
           output-file: ""
