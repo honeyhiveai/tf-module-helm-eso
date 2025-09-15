@@ -1,0 +1,23 @@
+# Checkov Configuration for External Secrets Operator Module
+# This module deploys Helm charts, not AWS resources, so most AWS-specific
+# security checks are not applicable.
+
+# Skip all checks since this is a Helm/Kubernetes module, not AWS infrastructure
+skip-check:
+  # Skip all AWS resource checks as they don't apply to Helm charts
+  - CKV_AWS_*
+  - CKV2_AWS_*
+  
+# Skip directories that don't need scanning  
+skip-path:
+  - .terraform
+  - .git
+  - node_modules
+  
+# Framework configuration
+framework:
+  - terraform
+
+# Output configuration
+output: json
+quiet: true
