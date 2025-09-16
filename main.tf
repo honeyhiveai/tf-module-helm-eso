@@ -54,22 +54,7 @@ data "tls_certificate" "cluster" {
 # ================================
 # NAMESPACE
 # ================================
-
-resource "kubernetes_namespace" "eso" {
-  count = var.create_namespace ? 1 : 0
-
-  metadata {
-    name = var.namespace
-    labels = {
-      name                           = var.namespace
-      "app.kubernetes.io/name"       = "external-secrets"
-      "app.kubernetes.io/instance"   = local.name_prefix
-      "app.kubernetes.io/component"  = "operator"
-      "app.kubernetes.io/part-of"    = "external-secrets"
-      "app.kubernetes.io/managed-by" = "terraform"
-    }
-  }
-}
+# Namespace will be created by Helm with create_namespace = true
 
 # ================================
 # IAM ROLE FOR SERVICE ACCOUNT (IRSA)
@@ -200,7 +185,7 @@ resource "kubernetes_service_account" "eso" {
     }
   }
 
-  depends_on = [kubernetes_namespace.eso]
+  # Service account no longer depends on separate namespace resource
 }
 
 # ================================
@@ -214,7 +199,7 @@ resource "helm_release" "external_secrets" {
   version    = var.eso_version
   namespace  = var.namespace
 
-  create_namespace = false # We manage namespace separately
+  create_namespace = true  # Helm handles namespace creation idempotently
   timeout          = var.helm_timeout
   cleanup_on_fail  = true
   force_update     = false
@@ -285,7 +270,6 @@ resource "helm_release" "external_secrets" {
   ]
 
   depends_on = [
-    kubernetes_namespace.eso,
     kubernetes_service_account.eso
   ]
 }
