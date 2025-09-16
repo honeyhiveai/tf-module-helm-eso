@@ -185,11 +185,7 @@ variable "helm_values" {
   default     = {}
 }
 
-variable "create_namespace" {
-  description = "Whether to create the ESO namespace."
-  type        = bool
-  default     = true
-}
+# create_namespace variable removed - Helm now handles namespace creation with create_namespace = true
 
 variable "helm_timeout" {
   description = "Timeout for Helm chart installation (in seconds)."

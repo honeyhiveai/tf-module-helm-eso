@@ -259,7 +259,6 @@ For questions about this template or AWS Terraform module development:
 | [helm_release.external_secrets](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubectl_manifest.cluster_secret_store_ps](https://registry.terraform.io/providers/gavinbunney/kubectl/latest/docs/resources/manifest) | resource |
 | [kubectl_manifest.cluster_secret_store_sm](https://registry.terraform.io/providers/gavinbunney/kubectl/latest/docs/resources/manifest) | resource |
-| [kubernetes_namespace.eso](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_service_account.eso](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account) | resource |
 | [null_resource.validate_configuration](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.wait_for_eso](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
@@ -273,7 +272,6 @@ For questions about this template or AWS Terraform module development:
 | <a name="input_controller_replicas"></a> [controller\_replicas](#input\_controller\_replicas) | Number of External Secrets Operator controller replicas. | `number` | `1` | no |
 | <a name="input_create_cluster_secret_store"></a> [create\_cluster\_secret\_store](#input\_create\_cluster\_secret\_store) | Whether to create ClusterSecretStore resources for AWS integration. | `bool` | `true` | no |
 | <a name="input_create_iam_role"></a> [create\_iam\_role](#input\_create\_iam\_role) | Whether to create the IAM role for ESO. Set to false to use an externally managed role. | `bool` | `true` | no |
-| <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the ESO namespace. | `bool` | `true` | no |
 | <a name="input_create_oidc_provider"></a> [create\_oidc\_provider](#input\_create\_oidc\_provider) | Whether to create the OIDC provider. Only used when use\_pod\_identity is false (IRSA mode). | `bool` | `false` | no |
 | <a name="input_enable_metrics"></a> [enable\_metrics](#input\_enable\_metrics) | Whether to enable Prometheus metrics for ESO. | `bool` | `true` | no |
 | <a name="input_enable_parameter_store"></a> [enable\_parameter\_store](#input\_enable\_parameter\_store) | Whether to enable AWS Systems Manager Parameter Store integration. | `bool` | `false` | no |
