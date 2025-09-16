@@ -50,6 +50,6 @@ output "namespace_test_summary" {
   value = {
     namespace_used        = module.eso.namespace
     helm_managed_creation = "true"
-    test_purpose         = "Validate Helm-native namespace creation handles existing namespaces gracefully"
+    test_purpose          = "Validate Helm-native namespace creation handles existing namespaces gracefully"
   }
 }

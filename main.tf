@@ -199,7 +199,7 @@ resource "helm_release" "external_secrets" {
   version    = var.eso_version
   namespace  = var.namespace
 
-  create_namespace = true  # Helm handles namespace creation idempotently
+  create_namespace = true # Helm handles namespace creation idempotently
   timeout          = var.helm_timeout
   cleanup_on_fail  = true
   force_update     = false

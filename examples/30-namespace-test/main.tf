@@ -21,8 +21,8 @@ module "eso" {
   secrets_manager_arns   = ["*"] # Allow access to all secrets - restrict in production
 
   # Optional: Parameter Store (enabled for comprehensive testing)
-  enable_parameter_store   = true
-  parameter_store_arns     = ["*"]
+  enable_parameter_store = true
+  parameter_store_arns   = ["*"]
 
   # ESO configuration
   eso_version         = "0.9.11"
