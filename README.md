@@ -273,12 +273,13 @@ For questions about this template or AWS Terraform module development:
 | <a name="input_create_cluster_secret_store"></a> [create\_cluster\_secret\_store](#input\_create\_cluster\_secret\_store) | Whether to create ClusterSecretStore resources for AWS integration. | `bool` | `true` | no |
 | <a name="input_create_iam_role"></a> [create\_iam\_role](#input\_create\_iam\_role) | Whether to create the IAM role for ESO. Set to false to use an externally managed role. | `bool` | `true` | no |
 | <a name="input_create_oidc_provider"></a> [create\_oidc\_provider](#input\_create\_oidc\_provider) | Whether to create the OIDC provider. Only used when use\_pod\_identity is false (IRSA mode). | `bool` | `false` | no |
+| <a name="input_create_pod_identity_association"></a> [create\_pod\_identity\_association](#input\_create\_pod\_identity\_association) | Whether to create the Pod Identity association. Set to false when the association is managed externally by a separate IAM module. | `bool` | `true` | no |
 | <a name="input_enable_metrics"></a> [enable\_metrics](#input\_enable\_metrics) | Whether to enable Prometheus metrics for ESO. | `bool` | `true` | no |
 | <a name="input_enable_parameter_store"></a> [enable\_parameter\_store](#input\_enable\_parameter\_store) | Whether to enable AWS Systems Manager Parameter Store integration. | `bool` | `false` | no |
 | <a name="input_enable_secrets_manager"></a> [enable\_secrets\_manager](#input\_enable\_secrets\_manager) | Whether to enable AWS Secrets Manager integration. | `bool` | `true` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name (e.g., dev, test, stage, prod). | `string` | n/a | yes |
 | <a name="input_eso_version"></a> [eso\_version](#input\_eso\_version) | Version of the External Secrets Operator Helm chart to deploy. | `string` | `"0.9.11"` | no |
-| <a name="input_external_iam_role_arn"></a> [external\_iam\_role\_arn](#input\_external\_iam\_role\_arn) | ARN of an externally managed IAM role to use for ESO. Only used when create\_iam\_role is false. | `string` | `null` | no |
+| <a name="input_external_iam_role_arn"></a> [external\_iam\_role\_arn](#input\_external\_iam\_role\_arn) | ARN of an externally managed IAM role to use for ESO. Required when create\_iam\_role is false or when using externally-managed Pod Identity associations (create\_pod\_identity\_association = false). | `string` | `null` | no |
 | <a name="input_helm_timeout"></a> [helm\_timeout](#input\_helm\_timeout) | Timeout for Helm chart installation (in seconds). | `number` | `600` | no |
 | <a name="input_helm_values"></a> [helm\_values](#input\_helm\_values) | Additional Helm values to override ESO chart defaults. | `any` | `{}` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources created by this module. | `string` | n/a | yes |
@@ -317,7 +318,7 @@ For questions about this template or AWS Terraform module development:
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | The Kubernetes namespace where ESO is deployed. |
 | <a name="output_oidc_provider_arn"></a> [oidc\_provider\_arn](#output\_oidc\_provider\_arn) | The ARN of the OIDC provider (if created for IRSA). |
 | <a name="output_parameter_store_arns"></a> [parameter\_store\_arns](#output\_parameter\_store\_arns) | List of Parameter Store ARNs that ESO can access. |
-| <a name="output_pod_identity_association_arn"></a> [pod\_identity\_association\_arn](#output\_pod\_identity\_association\_arn) | The ARN of the Pod Identity Association (if created for Pod Identity). |
+| <a name="output_pod_identity_association_arn"></a> [pod\_identity\_association\_arn](#output\_pod\_identity\_association\_arn) | The ARN of the Pod Identity Association (if created by this module). Returns null if managed externally. |
 | <a name="output_quick_start_guide"></a> [quick\_start\_guide](#output\_quick\_start\_guide) | Quick start guide for using the deployed ESO instance. |
 | <a name="output_resource_tags"></a> [resource\_tags](#output\_resource\_tags) | The tags applied to resources created by this module. |
 | <a name="output_secrets_manager_arns"></a> [secrets\_manager\_arns](#output\_secrets\_manager\_arns) | List of Secrets Manager ARNs that ESO can access. |
