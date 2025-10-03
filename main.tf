@@ -305,18 +305,24 @@ resource "kubectl_manifest" "cluster_secret_store_sm" {
     }
     spec = {
       provider = {
-        aws = {
-          service = "SecretsManager"
-          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.id
-          auth = {
-            jwt = {
-              serviceAccountRef = {
-                name      = local.service_account_name
-                namespace = var.namespace
+        aws = merge(
+          {
+            service = "SecretsManager"
+            region  = var.aws_region != null ? var.aws_region : data.aws_region.current.id
+          },
+          # Only include auth block for IRSA (not for Pod Identity)
+          # Pod Identity uses default AWS SDK credential chain without explicit auth configuration
+          var.use_pod_identity ? {} : {
+            auth = {
+              jwt = {
+                serviceAccountRef = {
+                  name      = local.service_account_name
+                  namespace = var.namespace
+                }
               }
             }
           }
-        }
+        )
       }
     }
   })
@@ -340,18 +346,24 @@ resource "kubectl_manifest" "cluster_secret_store_ps" {
     }
     spec = {
       provider = {
-        aws = {
-          service = "ParameterStore"
-          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.id
-          auth = {
-            jwt = {
-              serviceAccountRef = {
-                name      = local.service_account_name
-                namespace = var.namespace
+        aws = merge(
+          {
+            service = "ParameterStore"
+            region  = var.aws_region != null ? var.aws_region : data.aws_region.current.id
+          },
+          # Only include auth block for IRSA (not for Pod Identity)
+          # Pod Identity uses default AWS SDK credential chain without explicit auth configuration
+          var.use_pod_identity ? {} : {
+            auth = {
+              jwt = {
+                serviceAccountRef = {
+                  name      = local.service_account_name
+                  namespace = var.namespace
+                }
               }
             }
           }
-        }
+        )
       }
     }
   })
