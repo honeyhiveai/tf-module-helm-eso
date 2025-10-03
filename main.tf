@@ -185,7 +185,8 @@ resource "kubernetes_service_account" "eso" {
     }
   }
 
-  # Service account no longer depends on separate namespace resource
+  # Wait for Helm release to create namespace
+  depends_on = [helm_release.external_secrets]
 }
 
 # ================================
@@ -269,9 +270,8 @@ resource "helm_release" "external_secrets" {
     }, var.helm_values))
   ]
 
-  depends_on = [
-    kubernetes_service_account.eso
-  ]
+  # Namespace is created by Helm, service account is created after
+  # No explicit dependency needed - ESO pods will use SA once it exists
 }
 
 # ================================
@@ -404,4 +404,3 @@ resource "null_resource" "validate_configuration" {
     }
   }
 }
-
