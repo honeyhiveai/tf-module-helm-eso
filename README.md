@@ -286,7 +286,7 @@ For questions about this template or AWS Terraform module development:
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace for External Secrets Operator installation. | `string` | `"external-secrets"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for ESO pods. | `map(string)` | `{}` | no |
 | <a name="input_parameter_store_arns"></a> [parameter\_store\_arns](#input\_parameter\_store\_arns) | List of AWS Systems Manager Parameter Store ARNs that ESO can access. Use ['*'] for all parameters. | `list(string)` | `[]` | no |
-| <a name="input_secrets_manager_arns"></a> [secrets\_manager\_arns](#input\_secrets\_manager\_arns) | List of AWS Secrets Manager ARNs that ESO can access. Use ['*'] for all secrets. | `list(string)` | `[]` | no |
+| <a name="input_secrets_manager_arns"></a> [secrets\_manager\_arns](#input\_secrets\_manager\_arns) | List of AWS Secrets Manager ARNs that ESO can access. Use ['*'] for all secrets. Supports wildcards in secret paths. | `list(string)` | `[]` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags to apply to all resources. | `map(string)` | `{}` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for ESO pods. | `list(any)` | `[]` | no |
 | <a name="input_use_pod_identity"></a> [use\_pod\_identity](#input\_use\_pod\_identity) | Whether to use EKS Pod Identity instead of IRSA. Recommended for EC2 workloads, use false for Fargate. | `bool` | `false` | no |

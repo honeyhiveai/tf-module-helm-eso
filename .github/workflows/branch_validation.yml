@@ -5,12 +5,12 @@ name: Terraform Module Validation
 
 on:
   push:
-    branches-ignore: [ main ]
+    branches-ignore: [main]
     paths:
-      - '**/*.tf'
-      - '.tflint.hcl'
-      - '.terraform.lock.hcl'
-      - 'examples/**'
+      - "**/*.tf"
+      - ".tflint.hcl"
+      - ".terraform.lock.hcl"
+      - "examples/**"
   workflow_dispatch: {}
 
 permissions:
@@ -27,22 +27,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write  # For SARIF upload
+      security-events: write # For SARIF upload
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for better secret scanning
+          fetch-depth: 0 # Full history for better secret scanning
 
       # Enhanced Trivy Security Scan
       - name: Enhanced Trivy Security Scan
         uses: aquasecurity/trivy-action@0.32.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'misconfig,secret,license'
-          format: 'json'
-          output: 'trivy-results.json'
-          trivy-config: '.trivy.yaml'
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "misconfig,secret,license"
+          format: "json"
+          output: "trivy-results.json"
+          trivy-config: ".trivy.yaml"
 
       - name: Display Trivy Security Results
         if: always()
@@ -212,11 +212,11 @@ jobs:
       - name: Trivy Security Scan
         uses: aquasecurity/trivy-action@0.32.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          output: 'trivy-security-report.txt'
-          trivy-config: '.trivy.yaml'
+          scan-type: "fs"
+          scan-ref: "."
+          format: "table"
+          output: "trivy-security-report.txt"
+          trivy-config: ".trivy.yaml"
 
       - name: Display Trivy security scan results
         if: always()
@@ -332,10 +332,18 @@ jobs:
         run: |
           cd ${{ matrix.example-directory }}
           terraform init -backend=false
-          terraform plan -no-color -detailed-exitcode
+
+          # Set timeout for terraform plan to prevent indefinite hangs
+          timeout 5m terraform plan -no-color -detailed-exitcode || {
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+              echo "::warning::Terraform plan timed out after 5 minutes. This may indicate missing AWS resources or connectivity issues."
+            fi
+            exit $EXIT_CODE
+          }
         # Continue on error to allow other examples to run
         continue-on-error: true
-
+        timeout-minutes: 10
 # Template Notes:
 #
 # Required Repository Variables (configure in GitHub repository settings):
