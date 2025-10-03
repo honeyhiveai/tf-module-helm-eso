@@ -38,8 +38,7 @@ module "eso" {
   create_oidc_provider = false # Not needed when using Pod Identity
 
   # Kubernetes configuration
-  create_namespace = true
-  namespace        = "external-secrets"
+  namespace = "external-secrets"
 
   # Production helm values override
   helm_values = {

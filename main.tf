@@ -168,7 +168,12 @@ resource "aws_eks_pod_identity_association" "eso" {
 # SERVICE ACCOUNT
 # ================================
 
+# Only create service account in Terraform when using IRSA with module-managed IAM
+# For Pod Identity or external IAM management, let Helm create the service account
+# to avoid timing issues where pods start before the service account exists
 resource "kubernetes_service_account" "eso" {
+  count = var.create_iam_role && !var.use_pod_identity ? 1 : 0
+
   metadata {
     name      = local.service_account_name
     namespace = var.namespace
@@ -179,8 +184,8 @@ resource "kubernetes_service_account" "eso" {
       "app.kubernetes.io/part-of"    = "external-secrets"
       "app.kubernetes.io/managed-by" = "terraform"
     }
-    # Only add IRSA annotation when not using Pod Identity
-    annotations = var.use_pod_identity ? {} : {
+    # IRSA annotation with role ARN
+    annotations = {
       "eks.amazonaws.com/role-arn" = local.iam_role_arn
     }
   }
@@ -208,9 +213,18 @@ resource "helm_release" "external_secrets" {
   values = [
     yamlencode(merge({
       # Service Account configuration
+      # Let Helm create service account when:
+      # 1. Using external IAM (create_iam_role = false), OR
+      # 2. Using Pod Identity (use_pod_identity = true)
+      # Only Terraform manages it for IRSA with module-managed IAM
       serviceAccount = {
-        create = false
+        create = var.create_iam_role && !var.use_pod_identity ? false : true
         name   = local.service_account_name
+        # Annotations only needed for IRSA (not Pod Identity)
+        # When Helm creates the SA, we need to add the role ARN annotation for IRSA
+        annotations = !var.use_pod_identity ? {
+          "eks.amazonaws.com/role-arn" = local.iam_role_arn
+        } : {}
       }
 
       # Controller configuration
@@ -269,9 +283,6 @@ resource "helm_release" "external_secrets" {
 
     }, var.helm_values))
   ]
-
-  # Namespace is created by Helm, service account is created after
-  # No explicit dependency needed - ESO pods will use SA once it exists
 }
 
 # ================================
