@@ -56,16 +56,16 @@ variable "aws_region" {
 }
 
 variable "secrets_manager_arns" {
-  description = "List of AWS Secrets Manager ARNs that ESO can access. Use ['*'] for all secrets."
+  description = "List of AWS Secrets Manager ARNs that ESO can access. Use ['*'] for all secrets. Supports wildcards in secret paths."
   type        = list(string)
   default     = []
 
   validation {
     condition = alltrue([
       for arn in var.secrets_manager_arns :
-      can(regex("^(arn:aws:secretsmanager:[a-z0-9-]+:[0-9]+:secret:[a-zA-Z0-9/_.-]+|\\*)$", arn))
+      can(regex("^(arn:aws:secretsmanager:[a-z0-9-]+:[0-9]+:secret:[a-zA-Z0-9/_.*-]+|\\*)$", arn))
     ])
-    error_message = "Each Secrets Manager ARN must be valid or use '*' for all secrets."
+    error_message = "Each Secrets Manager ARN must be valid or use '*' for all secrets. Wildcards are supported in secret paths (e.g., secret:path/*)."
   }
 }
 
