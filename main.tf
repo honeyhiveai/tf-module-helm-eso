@@ -88,7 +88,7 @@ resource "aws_iam_role" "eso" {
         Action = "sts:AssumeRole"
         Condition = {
           ArnEquals = {
-            "aws:SourceArn" = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:podidentityassociation/${var.cluster_name}/*"
+            "aws:SourceArn" = "arn:aws:eks:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:podidentityassociation/${var.cluster_name}/*"
           }
         }
         } : {
@@ -154,7 +154,7 @@ resource "aws_iam_role_policy" "eso_secrets_access" {
 # ================================
 
 resource "aws_eks_pod_identity_association" "eso" {
-  count = var.use_pod_identity ? 1 : 0
+  count = var.use_pod_identity && var.create_pod_identity_association ? 1 : 0
 
   cluster_name    = var.cluster_name
   namespace       = var.namespace
@@ -296,7 +296,7 @@ resource "kubectl_manifest" "cluster_secret_store_sm" {
       provider = {
         aws = {
           service = "SecretsManager"
-          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.name
+          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.id
           auth = {
             jwt = {
               serviceAccountRef = {
@@ -331,7 +331,7 @@ resource "kubectl_manifest" "cluster_secret_store_ps" {
       provider = {
         aws = {
           service = "ParameterStore"
-          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.name
+          region  = var.aws_region != null ? var.aws_region : data.aws_region.current.id
           auth = {
             jwt = {
               serviceAccountRef = {

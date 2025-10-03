@@ -55,8 +55,8 @@ output "oidc_provider_arn" {
 }
 
 output "pod_identity_association_arn" {
-  description = "The ARN of the Pod Identity Association (if created for Pod Identity)."
-  value       = var.use_pod_identity ? try(aws_eks_pod_identity_association.eso[0].association_arn, null) : null
+  description = "The ARN of the Pod Identity Association (if created by this module). Returns null if managed externally."
+  value       = var.use_pod_identity && var.create_pod_identity_association ? try(aws_eks_pod_identity_association.eso[0].association_arn, null) : null
 }
 
 output "authentication_mode" {
@@ -103,7 +103,7 @@ output "cluster_version" {
 
 output "aws_region" {
   description = "The AWS region where secrets will be accessed."
-  value       = var.aws_region != null ? var.aws_region : data.aws_region.current.name
+  value       = var.aws_region != null ? var.aws_region : data.aws_region.current.id
 }
 
 output "aws_account_id" {

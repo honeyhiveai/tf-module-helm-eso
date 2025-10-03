@@ -130,6 +130,12 @@ variable "use_pod_identity" {
   default     = false
 }
 
+variable "create_pod_identity_association" {
+  description = "Whether to create the Pod Identity association. Set to false when the association is managed externally by a separate IAM module."
+  type        = bool
+  default     = true
+}
+
 variable "create_oidc_provider" {
   description = "Whether to create the OIDC provider. Only used when use_pod_identity is false (IRSA mode)."
   type        = bool
@@ -143,13 +149,22 @@ variable "create_iam_role" {
 }
 
 variable "external_iam_role_arn" {
-  description = "ARN of an externally managed IAM role to use for ESO. Only used when create_iam_role is false."
+  description = "ARN of an externally managed IAM role to use for ESO. Required when create_iam_role is false or when using externally-managed Pod Identity associations (create_pod_identity_association = false)."
   type        = string
   default     = null
 
   validation {
     condition     = var.external_iam_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.+", var.external_iam_role_arn))
     error_message = "External IAM role ARN must be a valid IAM role ARN format."
+  }
+
+  validation {
+    condition = (
+      var.use_pod_identity && !var.create_pod_identity_association
+      ? var.external_iam_role_arn != null && var.external_iam_role_arn != ""
+      : true
+    )
+    error_message = "external_iam_role_arn must be provided when use_pod_identity = true and create_pod_identity_association = false (using externally-managed Pod Identity association)."
   }
 }
 
