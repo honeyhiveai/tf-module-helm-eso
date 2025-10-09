@@ -292,6 +292,10 @@ resource "helm_release" "external_secrets" {
 resource "kubectl_manifest" "cluster_secret_store_sm" {
   count = var.enable_secrets_manager && var.create_cluster_secret_store ? 1 : 0
 
+  # Force conflicts to handle webhook validation issues during destroy
+  force_conflicts  = true
+  wait_for_rollout = false
+
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ClusterSecretStore"
@@ -332,6 +336,10 @@ resource "kubectl_manifest" "cluster_secret_store_sm" {
 
 resource "kubectl_manifest" "cluster_secret_store_ps" {
   count = var.enable_parameter_store && var.create_cluster_secret_store ? 1 : 0
+
+  # Force conflicts to handle webhook validation issues during destroy
+  force_conflicts  = true
+  wait_for_rollout = false
 
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
